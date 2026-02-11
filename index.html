@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bauernschach</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .game {
+      background: white;
+      padding: 28px 32px 32px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      text-align: center;
+      width: 420px;
+    }
+    h1 {
+      font-size: 1.2rem;
+      margin-bottom: 8px;
+    }
+    .status {
+      margin-bottom: 12px;
+      font-weight: 500;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .cell {
+      width: 110px;
+      height: 110px;
+      border-radius: 10px;
+      background: #e9e9e9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 2rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .cell.selected {
+      outline: 3px solid #4caf50;
+      background: #e0f2e9;
+    }
+    .cell.possible {
+      background: #c8e6c9;
+    }
+    button {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #4caf50;
+      color: white;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="game">
+    <h1>Bauernschach</h1>
+    <div class="status" id="status"></div>
+
+    <div style="display:flex; gap:24px; align-items:flex-start; justify-content:center;">
+      <div class="board" id="board"></div>
+      <div id="tracker" style="font-size:0.9rem; text-align:left; min-width:140px;"></div>
+    </div>
+
+    <button style="margin-top:16px;" onclick="resetGame()">Neue Runde</button>
+  </div>
+
+  <script>
+    const boardEl = document.getElementById('board');
+    const statusEl = document.getElementById('status');
+
+    let board;
+    let round = 1;
+    let history = [];
+    let currentPlayer;
+    let selected;
+
+    const P1 = '🔴';
+    const P2 = '🔵';
+
+    function resetGame() {
+      if (board) round++;
+      board = [
+        [P2, P2, P2],
+        [null, null, null],
+        [P1, P1, P1]
+      ];
+      currentPlayer = P2;
+      selected = null;
+      render();
+      updateStatus();
+      renderTracker();
+    }
+
+    function updateStatus(text) {
+      statusEl.textContent = text || `Am Zug: ${currentPlayer === P1 ? 'Rot 🔴' : 'Blau 🔵'}`;
+    }
+
+    function render() {
+      boardEl.innerHTML = '';
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.textContent = board[r][c] || '';
+
+          if (selected && selected.r === r && selected.c === c) {
+            cell.classList.add('selected');
+          }
+
+          cell.onclick = () => onCellClick(r, c);
+          boardEl.appendChild(cell);
+        }
+      }
+    }
+
+    function onCellClick(r, c) {
+      const piece = board[r][c];
+
+      if (selected) {
+        if (isLegalMove(selected.r, selected.c, r, c)) {
+          board[r][c] = currentPlayer;
+          board[selected.r][selected.c] = null;
+          selected = null;
+
+          if (checkWin()) return;
+
+          currentPlayer = currentPlayer === P1 ? P2 : P1;
+          updateStatus();
+          render();
+        } else {
+          selected = null;
+          render();
+        }
+      } else {
+        if (piece === currentPlayer) {
+          selected = { r, c };
+          render();
+        }
+      }
+    }
+
+    function isLegalMove(sr, sc, tr, tc) {
+      const dir = currentPlayer === P1 ? -1 : 1;
+      if (tc === sc && tr === sr + dir && board[tr][tc] === null) return true;
+      if (Math.abs(tc - sc) === 1 && tr === sr + dir && board[tr][tc] && board[tr][tc] !== currentPlayer) return true;
+      return false;
+    }
+
+    function checkWin() {
+      const opponent = currentPlayer === P1 ? P2 : P1;
+
+      // 1. Zielreihe erreicht
+      if (board[0].includes(P1)) {
+        updateStatus('Rot 🔴 gewinnt! 🎉');
+        history.push({ round, winner: 'Rot 🔴' });
+        renderTracker();
+        render();
+        return true;
+      }
+      if (board[2].includes(P2)) {
+        updateStatus('Blau 🔵 gewinnt! 🎉');
+        history.push({ round, winner: 'Blau 🔵' });
+        renderTracker();
+        render();
+        return true;
+      }
+
+      // 2. Alle gegnerischen Figuren geschlagen
+      const flat = board.flat();
+      if (!flat.includes(opponent)) {
+        updateStatus(`${currentPlayer === P1 ? 'Rot 🔴' : 'Blau 🔵'} gewinnt! 🎉`);
+        history.push({ round, winner: currentPlayer === P1 ? 'Rot 🔴' : 'Blau 🔵' });
+        renderTracker();
+        render();
+        return true;
+      }
+
+      // 3. Gegner hat keinen legalen Zug mehr
+      if (!hasAnyLegalMove(opponent)) {
+        updateStatus(`${currentPlayer === P1 ? 'Rot 🔴' : 'Blau 🔵'} gewinnt! 🎉`);
+        history.push({ round, winner: currentPlayer === P1 ? 'Rot 🔴' : 'Blau 🔵' });
+        renderTracker();
+        render();
+        return true;
+      }
+
+      return false;
+    }
+
+    function renderTracker() {
+      const tracker = document.getElementById('tracker');
+      if (history.length === 0) {
+        tracker.textContent = '';
+        return;
+      }
+      tracker.innerHTML = history
+        .map(h => `Runde ${h.round}: <strong>${h.winner}</strong>`)
+        .join('<br>');
+    }
+
+    function hasAnyLegalMove(player) {
+      const dir = player === P1 ? -1 : 1;
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          if (board[r][c] === player) {
+            const nr = r + dir;
+            if (nr < 0 || nr > 2) continue;
+
+            // vorwärts
+            if (board[nr][c] === null) return true;
+
+            // diagonal schlagen
+            for (let dc of [-1, 1]) {
+              const nc = c + dc;
+              if (nc >= 0 && nc <= 2 && board[nr][nc] && board[nr][nc] !== player) {
+                return true;
+              }
+            }
+          }
+        }
+      }
+      return false;
+    }
+
+    resetGame();
+  </script>
+</body>
+</html>
